@@ -1,16 +1,18 @@
 {
-  "name": "shadowsocks",
+  "name": "shadowkeeper",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+  "bin": {
+    "shadowkeeper": "./bin/shadowkeeper"
   },
-  "author": "",
-  "license": "ISC",
+  "author": "yelo",
+  "license": "MIT",
   "dependencies": {
     "bluebird": "^3.4.1",
-    "configstore": "^2.0.0",
-    "inquirer": "^1.1.2"
+    "chalk": "^1.1.3",
+    "conf": "^0.11.2",
+    "get-stdin": "^5.0.1",
+    "inquirer": "^1.1.2",
+    "meow": "^3.7.0"
   }
 }

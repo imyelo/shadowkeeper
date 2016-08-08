@@ -1,12 +1,30 @@
 #!/usr/bin/env node
 
 const Promise = require('bluebird')
+const chalk = require('chalk')
 const inquirer = require('inquirer')
 const fs = Promise.promisifyAll(require('fs'))
 const path = require('path')
-const spawn = require('child_process').spawn
+const meow = require('meow')
+const exec = require('child_process').exec
+const Conf = require('conf')
 
-fs.readFileAsync(__dirname + '/data/config/source.json')
+const conf = new Conf()
+
+Promise.resolve()
+  .then(() => {
+    const cli = meow(`
+        Usage
+          $ shadowkeeper ./gui-config.json
+      `)
+    const file = cli.input[0] ? path.resolve(process.cwd(), cli.input[0]) : conf.get('config_file_path')
+    if (!file) {
+      throw new Error('Please select a config file (gui-config.json) at least once')
+    }
+    conf.set('config_file_path', file)
+    return file
+  })
+  .then((file) => fs.readFileAsync(file))
   .then((content) => JSON.parse(content))
   .then((json) => {
     return inquirer.prompt([{
@@ -23,7 +41,7 @@ fs.readFileAsync(__dirname + '/data/config/source.json')
       name: 'port',
       message: 'type your local port',
       default: (answer) => {
-        return answer.config.local_port || json.localPort
+        return conf.get('local_port') || answer.config.local_port || json.localPort
       },
       validate: (value) => {
         return /^\d{1,4}$/.test(value) || 'the local port should be a number between 1-9999'
@@ -31,19 +49,18 @@ fs.readFileAsync(__dirname + '/data/config/source.json')
     }]).then((answer) => {
       const config = answer.config
       config.local_port = answer.port
+      conf.set('local_port', answer.port)
       return config
     })
   })
   .then((config) => {
-    console.log(config)
-    const proc = spawn('sslocal', [
-      '-s', config.server,
-      '-p', config.server_port,
-      '-k', config.password,
-      '-m', config.method,
-      '-l', config.local_port
-      ])
+    const command = `sslocal -s ${config.server} -p ${config.server_port} -k ${config.password} -m ${config.method} -l ${config.local_port}`
+    const proc = exec(command)
+    console.log(`> ${command}`)
     proc.stdout.on('data', data => console.log(`stdout: ${data}`))
     proc.stderr.on('data', data => console.log(`stderr: ${data}`))
     proc.on('close', code => console.log(`child process close with ${code}`))
+  })
+  .catch((err) => {
+    console.log(`${chalk.red(err)}`)
   })
