@@ -1,6 +1,6 @@
 {
   "name": "shadowkeeper",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "a better sslocal base on itself and wrapped by nodejs",
   "bin": {
     "shadowkeeper": "./bin/shadowkeeper"
