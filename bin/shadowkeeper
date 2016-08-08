@@ -32,7 +32,9 @@ Promise.resolve()
       name: 'config',
       message: 'choose your server config',
       choices: json.configs.filter((config) => config.remarks).map((config) => config.remarks),
-      default: 'ru-21',
+      default: () => {
+        return conf.get('last_server_config')
+      },
       filter: (remark) => {
         return json.configs.find((config) => config.remarks === remark)
       }
@@ -49,6 +51,7 @@ Promise.resolve()
     }]).then((answer) => {
       const config = answer.config
       config.local_port = answer.port
+      conf.set('last_server_config', config.remarks)
       conf.set('local_port', answer.port)
       return config
     })
