@@ -25,7 +25,7 @@ async function main () {
         $ shadowkeeper ./gui-config.json
       
       Options
-        --ping Ping servers 
+        --ping  Ping servers 
     `, {
       flags: {
         ping: {
