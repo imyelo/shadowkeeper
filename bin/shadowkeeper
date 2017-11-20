@@ -11,59 +11,78 @@ const Conf = require('conf')
 
 const conf = new Conf()
 
-Promise.resolve()
-  .then(() => {
+async function main () {
+  try {
     const cli = meow(`
-        Usage
-          $ shadowkeeper ./gui-config.json
-      `)
+    Usage
+      $ shadowkeeper ./gui-config.json
+    
+    Options
+      --ping  Ping servers 
+    `, {
+    flags: {
+      ping: {
+        type: 'boolean',
+      },
+    },
+    })
     const file = cli.input[0] ? path.resolve(process.cwd(), cli.input[0]) : conf.get('config_file_path')
     if (!file) {
       throw new Error('Please select a config file (gui-config.json) at least once')
     }
     conf.set('config_file_path', file)
-    return file
-  })
-  .then((file) => fs.readFileAsync(file))
-  .then((content) => JSON.parse(content))
-  .then((json) => {
-    return inquirer.prompt([{
-      type: 'list',
-      name: 'config',
-      message: 'choose your server config',
-      choices: json.configs.filter((config) => config.remarks).map((config) => config.remarks),
-      default: () => {
-        return conf.get('last_server_config')
-      },
-      filter: (remark) => {
-        return json.configs.find((config) => config.remarks === remark)
-      }
-    }, {
-      type: 'input',
-      name: 'port',
-      message: 'type your local port',
-      default: (answer) => {
-        return conf.get('local_port') || answer.config.local_port || json.localPort
-      },
-      validate: (value) => {
-        return /^\d{1,4}$/.test(value) || 'the local port should be a number between 1-9999'
-      }
-    }]).then((answer) => {
-      const config = answer.config
-      config.local_port = answer.port
-      conf.set('last_server_config', config.remarks)
-      conf.set('local_port', answer.port)
-      return config
-    })
-  })
-  .then((config) => {
+
+    const config = JSON.parse(await fs.readFileAsync(file))
+
+    socks(config)
+      
+  } catch (err) {
+    console.log(`${chalk.red(err)}`)
+  }
+}
+
+async function socks (json) {
+  const { config, port } = await inquirer.prompt([{
+    type: 'list',
+    name: 'config',
+    message: 'choose your server config',
+    choices: json.configs.filter((config) => config.remarks).map((config) => config.remarks),
+    default: () => {
+      return conf.get('last_server_config')
+    },
+    filter: (remark) => {
+      return json.configs.find((config) => config.remarks === remark)
+    }
+  }, {
+    type: 'input',
+    name: 'port',
+    message: 'type your local port',
+    default: (answer) => {
+      return conf.get('local_port') || answer.config.local_port || json.localPort
+    },
+    validate: (value) => {
+      return /^\d{1,4}$/.test(value) || 'the local port should be a number between 1-9999'
+    }
+  }])
+
+  config.local_port = port
+
+  update(config)
+  execute(config)
+ 
+  function update (config) {
+    conf.set('last_server_config', config.remarks)
+    conf.set('local_port', config.local_port)
+  }
+
+  function execute (config) {
     const command = `sslocal -s ${config.server} -p ${config.server_port} -k ${config.password} -m ${config.method} -l ${config.local_port}`
     const proc = exec(command)
     console.log(`> ${command}`)
     proc.stdout.on('data', data => console.log(`stdout: ${data}`))
     proc.stderr.on('data', data => console.log(`stderr: ${data}`))
     proc.on('close', code => console.log(`child process close with ${code}`))
-  })
-  .catch((err) => {
-    console.log(`${chalk.red(err)}`)
-  })
+  }
+}
+
+main()
