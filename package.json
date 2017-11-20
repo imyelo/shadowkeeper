@@ -8,10 +8,15 @@
   "author": "yelo",
   "license": "MIT",
   "dependencies": {
-    "bluebird": "^3.4.1",
     "chalk": "^1.1.3",
     "conf": "^0.11.2",
     "inquirer": "^1.1.2",
-    "meow": "^3.7.0"
+    "log-symbols": "^2.1.0",
+    "log-update": "^2.3.0",
+    "meow": "^3.7.0",
+    "ora": "^1.3.0",
+    "p-all": "^1.0.0",
+    "pify": "^3.0.0",
+    "ping": "^0.2.2"
   }
 }

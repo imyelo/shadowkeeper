@@ -1,30 +1,37 @@
 #!/usr/bin/env node
 
-const Promise = require('bluebird')
+const pify = require('pify')
+const pAll = require('p-all')
 const chalk = require('chalk')
 const inquirer = require('inquirer')
-const fs = Promise.promisifyAll(require('fs'))
+const fs = require('fs')
 const path = require('path')
 const meow = require('meow')
 const exec = require('child_process').exec
+const Ping = require('ping')
 const Conf = require('conf')
+const logUpdate = require('log-update')
+const logSymbols = require('log-symbols')
+const Ora = require('ora')
 
 const conf = new Conf()
+
+const INTERVAL = 80
 
 async function main () {
   try {
     const cli = meow(`
-    Usage
-      $ shadowkeeper ./gui-config.json
-    
-    Options
-      --ping  Ping servers 
+      Usage
+        $ shadowkeeper ./gui-config.json
+      
+      Options
+        --ping Ping servers 
     `, {
-    flags: {
-      ping: {
-        type: 'boolean',
+      flags: {
+        ping: {
+          type: 'boolean',
+        },
       },
-    },
     })
     const file = cli.input[0] ? path.resolve(process.cwd(), cli.input[0]) : conf.get('config_file_path')
     if (!file) {
@@ -32,12 +39,18 @@ async function main () {
     }
     conf.set('config_file_path', file)
 
-    const config = JSON.parse(await fs.readFileAsync(file))
+    const config = JSON.parse(await pify(fs.readFile)(file, 'utf8'))
+
+    if (cli.flags.ping) {
+      return await ping(config)
+    }
 
     socks(config)
       
   } catch (err) {
     console.log(`${chalk.red(err)}`)
+    console.log(err.stack)
+    process.exit(1)
   }
 }
 
@@ -82,6 +95,57 @@ async function socks (json) {
     proc.stdout.on('data', data => console.log(`stdout: ${data}`))
     proc.stderr.on('data', data => console.log(`stderr: ${data}`))
     proc.on('close', code => console.log(`child process close with ${code}`))
+  }
+}
+
+async function ping (json) {
+  const spinner = new Ora()
+  const servers = json.configs.map(({ server }) => {
+    return {
+      host: server,
+    }
+  })
+
+  const interval = setInterval(render, INTERVAL)
+
+  await pAll(servers.map((server) => {
+    return () => Ping.promise.probe(server.host)
+      .then((pong) => {
+        server.pong = pong
+      })
+  }), { concurrency: 5 })
+
+  setTimeout(() => {
+    process.exit()
+  }, INTERVAL)
+
+  function sorter (left, right) {
+    const isWaiting = (server) => !server.pong
+    const isLoss = (server) => server.pong && !server.pong.alive
+    if ((isWaiting(left) && isWaiting(right)) || (isLoss(left) && isLoss(right))) {
+      return 0
+    }
+    if (isLoss(left) || isLoss(right)) {
+      return isLoss(left) ? 1 : -1
+    }
+    if (isWaiting(left) || isWaiting(right)) {
+      return isWaiting(left) ? 1 : -1
+    }
+    return left.pong.avg - right.pong.avg
+  }
+
+  function render () {
+    const output = servers.sort(sorter).map(({ host, pong }) => {
+      if (!pong) {
+        return `${spinner.frame()} ${host}: ...`
+      }
+      if (!pong.alive) {
+        return `${logSymbols.error}  ${host}: loss`
+      }
+      return `${logSymbols.success}  ${host}: ${pong.avg}ms`
+    })
+
+    logUpdate('\n' + output.join('\n'))
   }
 }
 
